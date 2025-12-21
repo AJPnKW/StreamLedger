@@ -28,7 +28,7 @@ regions:
   US:
     locations: [Buffalo, NYC, New York, San Diego, Los Angeles]
     feeds: [East, West]
-    news_only: [CNN, MSNBC]
+    news_allow_only: [CNN, MSNBC]
   UK:
     locations: [London]
   AU:
