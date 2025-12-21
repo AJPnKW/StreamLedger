@@ -1,0 +1,94 @@
+version: 1.0
+
+pipeline:
+  max_channels: 500
+  min_channels: 400
+  update_epg_hours: 6
+  user_agent: "StreamLedger/1.0"
+
+sources:
+  m3u:
+    - https://iptv-org.github.io/iptv/languages/eng.m3u
+    - https://iptv-org.github.io/iptv/countries/ca.m3u
+    - https://iptv-org.github.io/iptv/countries/us.m3u
+    - https://iptv-org.github.io/iptv/countries/uk.m3u
+    - https://iptv-org.github.io/iptv/countries/au.m3u
+  epg:
+    - https://epg.pw/xmltv/epg_CA.xml
+    - https://epg.pw/xmltv/epg_US.xml
+    - https://epg.pw/xmltv/epg_GB.xml
+    - https://epg.pw/xmltv/epg_AU.xml
+    - https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
+    - https://i.mjh.nz/all/epg.xml
+
+regions:
+  CA:
+    locations: [Toronto, Hamilton, Kitchener, London, Barrie]
+    feeds: [East, West]
+  US:
+    locations: [Buffalo, NYC, New York, San Diego, Los Angeles]
+    feeds: [East, West]
+    news_only: [CNN, MSNBC]
+  UK:
+    locations: [London]
+  AU:
+    locations: [Sydney]
+
+match_priority:
+  - tvg-id
+  - tvg-name
+  - group-title
+
+include:
+  networks:
+    - "CTV"
+    - "Global"
+    - "Citytv"
+    - "ABC"
+    - "CBS"
+    - "NBC"
+    - "FOX(?! News)"
+    - "PBS"
+    - "BBC One"
+    - "BBC Two"
+    - "ITV"
+    - "Channel 4"
+    - "Nine"
+    - "Ten"
+
+  specialty:
+    - "AMC"
+    - "A&E"
+    - "Discovery"
+    - "HBO"
+    - "Crave"
+    - "Showcase"
+    - "Starz"
+    - "Paramount"
+    - "Disney"
+    - "Warner"
+
+exclude:
+  group_title:
+    - Sports
+    - Religion
+    - Kids
+    - Education
+
+  name_regex:
+    - "(?i)test"
+    - "(?i)backup"
+    - "(?i)promo"
+    - "(?i)\\bSD\\b"
+    - "(?i)4K"
+
+priorities:
+  stream:
+    protocol_order: [https, http]
+    feed_order: [East, West]
+  epg:
+    source_order: [epg.pw, epgshare, mjh]
+
+validation:
+  timeout_sec: 6
+  retries: 1
