@@ -2,8 +2,8 @@
 # ==============================================================================
 # [FILE] functions/m3u.py
 # [PROJECT] StreamLedger
-# [ROLE] M3U parsing and matching helpers
-# [VERSION] v1.0
+# [ROLE] M3U parsing, matching, and writing helpers
+# [VERSION] v1.1
 # [UPDATED] 2025-12-24
 # ==============================================================================
 
@@ -22,7 +22,6 @@ def read_entries(file_path: str):
             if i < len(lines):
                 url_line = lines[i].strip()
                 if url_line.startswith("http"):
-                    # Parse attributes
                     attrs = {}
                     parts = info[8:].split(" ", 1)
                     if len(parts) > 1:
@@ -48,4 +47,12 @@ def match_region(name: str, regions: dict) -> bool:
         locations = data.get("locations", []) + data.get("markets", []) + data.get("allow_suffix", [])
         if any(loc.lower() in lower for loc in locations):
             return True
-    return False  # or True if no strict region
+    return False
+
+def write_m3u(channels: list, file_path: str):
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write("#EXTM3U\n")
+        for ch in channels:
+            attrs = " ".join(f'{k}="{v}"' for k, v in ch.items() if k not in ["name", "url"])
+            f.write(f'#EXTINF:-1 {attrs},{ch["name"]}\n')
+            f.write(f'{ch["url"]}\n')
