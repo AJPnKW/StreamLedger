@@ -1,3 +1,10 @@
-.my_notes
-*.bak
-*.BAK
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.cache/
+.cache_*
+venv/
+.venv/
+.env
+.DS_Store
