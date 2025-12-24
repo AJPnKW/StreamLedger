@@ -1,0 +1,45 @@
+"""
+StreamLedger — Filter Playlist (Production Step 1)
+
+Purpose
+- Build a curated M3U playlist from multiple public English/CA/US/UK/AU sources.
+- Apply deterministic include/exclude rules, de-duplicate channels, optionally validate streams,
+  and write outputs/curated.m3u plus outputs/report.json for QA/visibility.
+
+Inputs
+- config/streamledger.yml  (single source of truth)
+- Remote M3U sources defined in config -> downloaded to cache/
+
+Outputs
+- outputs/curated.m3u
+- outputs/report.json
+
+Config Keys (streamledger.yml)
+- pipeline.min_channels, pipeline.max_channels
+- sources.m3u[]
+- include.networks[], include.specialty[], include.news_allow_only[]
+- exclude.group_title[], exclude.name_regex[]
+- priorities.stream.protocol_order[], priorities.stream.feed_order[]
+- validation.soft_alive_on_403_405
+- validation.light.timeout_sec, validation.light.retries
+- validation.deep.timeout_sec, validation.deep.retries, validation.deep.range_bytes
+
+Environment Variables
+- VALIDATION_MODE: light | deep | none  (default: light)
+
+Determinism Guarantees
+- Selection uses a stable score + stable tie-break sort.
+- Capping to max_channels is deterministic (no upstream ordering dependency).
+
+Exit Behavior
+- Always writes curated.m3u and report.json.
+- Does NOT hard-fail build on channel count; instead writes warnings to report.json.
+  (Hard gates, if any, are handled by CI checks or subsequent steps.)
+
+Change Log
+- 1.1.0 (2025-12-24): Config becomes single-source-of-truth; deterministic scoring/cap; validation modes; report.json.
+"""
+
+__app__ = "StreamLedger"
+__component__ = "filter_playlist"
+__version__ = "1.1.0"

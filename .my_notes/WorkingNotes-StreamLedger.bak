@@ -1,0 +1,59 @@
+
+
+
+
+
+
+
+
+A) Channel include / exclude strategy (deterministic)
+Principles
+Whitelist-first (explicit allow beats regex guessing)
+Match on tvg-id, then tvg-name, then group-title
+Location via name suffixes (Toronto, East, West, London, etc.)
+De-duplicate by canonical_key = normalized tvg-id OR normalized name
+Keep best single stream per canonical channel (first alive, highest resolution if known)
+B) Config — config/include_channels.yaml
+C) Desktop GUI — src/gui_channel_selector.py (Tkinter)
+Purpose
+Load merged M3U
+Checkbox list of channels
+Save selections → config/manual_overrides.yaml
+D) Core script — src/filter_playlist.py
+
+
+
+as part of the ouput for promt 3 i got, can we get this developed on a better more modern tool, i thing Pty??? is better
+C) Desktop GUI — src/gui_channel_selector.py (Tkinter)
+Purpose
+Load merged M3U
+Checkbox list of channels
+Save selections → config/manual_overrides.yaml
+
+
+
+
+
+
+here is the reponse ouput, i didn include the actual code, but i did teh balance of teh reponse.
+1) Repo structure — how each folder is used (strict, minimal)
+Folder	Purpose	Notes
+inputs/	Static seed lists (channel name aliases, allowlists)	No downloads
+config/	Single source of truth (YAML)	Regions, include/exclude, priorities
+src/	Python pipeline scripts	Small, composable
+functions/	Reusable helpers	HTTP, parsing, validation
+cache/	Raw downloaded M3U/XML	Timestamped, reusable
+temp/	Working/intermediate files	Safe to wipe
+data/	Normalized channel table (CSV/JSON)	Optional audit
+outputs/	Final hardened M3U + EPG XML	What TiviMate consumes
+logs/	Run logs	Per-run
+archive/	Prior outputs snapshots	Rollback
+web/	(Optional) status/README artifacts	GitHub Pages
+docs/	Minimal docs	No duplication
+2) Config format — single YAML, deterministic
+config/streamledger.yml
+3) Initial Python script outline — download + filter (no over-engineering)
+Entry point
+src/run_pipeline.py
+4) Next step (only)
+Create functions/ helpers (http.py, m3u.py, epg.py, paths.py) with minimal implementations and logging.

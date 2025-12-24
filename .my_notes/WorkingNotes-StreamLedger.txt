@@ -1,0 +1,353 @@
+
+
+
+
+
+
+
+
+----------------------------------------
+
+
+
+
+----------------------------------------
+
+Here is the reponse ouput, i didn't  include the actual code, but I included all other text from the reponse:
+config/streamledger.yml fix (US key)
+  US:
+    locations: [Buffalo, NYC, New York, San Diego, Los Angeles]
+    feeds: [East, West]
+    news_allow_only: [CNN, MSNBC]
+src/gui_channel_selector.py import fix (choose one)
+Option used (works for both run styles)
+Replace the single import line with:
+try:
+    from src.filter_playlist import parse_m3u
+except Exception:  # allows direct run: python src/gui_channel_selector.py
+    from filter_playlist import parse_m3u
+(Alternative run command that also works with the original import: python -m src.gui_channel_selector from repo root.)
+src/build_epg.py (FULL FILE)
+******* my note *******
+i guess chatgpt intorduced a new file src/build_epg.py (FULL FILE) but with no context or real awareness, does it rplace an existing file? 
+when this happens a red flag goes off and i feel , becasie it has happend bofore the design has changes and the enfgiin erring and somrtihg was started ovver again from scratch and the existgn work was not repected and as a resutl we arae goign to have intergity and istpatches and all kinds of problems.
+*** prompt contonues ****
+GitHub Actions — .github/workflows/update.yml (FULL FILE)
+
+
+----------------------------------------
+
+Here is the reponse ouput, i didn't  include the actual code, but I included all other text from the reponse:
+Updated single config — config/streamledger.yml (consolidated, deduplicated)
+Updated PyQt6 GUI — src/gui_channel_selector.py (FULL FILE)
+requirements.txt / install / run
+No change required (PyQt6 already included).
+If missing PyQt6:
+i also ran the command as suggesed in this prompt reponse andin teh last oen as well and got 
+(.venv) PS C:\Users\andrew\PROJECTS\GitHub\StreamLedger> python src\filter_playlist.py
+Traceback (most recent call last):
+  File "C:\Users\andrew\PROJECTS\GitHub\StreamLedger\src\filter_playlist.py", line 112, in <module>
+    main()
+  File "C:\Users\andrew\PROJECTS\GitHub\StreamLedger\src\filter_playlist.py", line 91, in main
+    if not match_channel(ch, cfg):
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\andrew\PROJECTS\GitHub\StreamLedger\src\filter_playlist.py", line 71, in match_channel
+    if any(n.lower() in name.lower() for n in cfg["include"]["news_only"]):
+                                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+KeyError: 'news_only'
+(.venv) PS C:\Users\andrew\PROJECTS\GitHub\StreamLedger> python src\gui_channel_selector.py
+Traceback (most recent call last):
+  File "C:\Users\andrew\PROJECTS\GitHub\StreamLedger\src\gui_channel_selector.py", line 18, in <module>
+    from src.filter_playlist import parse_m3u
+ModuleNotFoundError: No module named 'src'
+(.venv) PS C:\Users\andrew\PROJECTS\GitHub\StreamLedger>
+
+
+
+----------------------------------------
+this promt reults in some of teh file beign reposted tasht didn need to get reposted, i only needed the one that was using tinkter to use a different python app.
+Here is the reponse ouput, i didn't  include the actual code, but I included all other text from the reponse:
+Below is a clean, minimal, drop-in implementation that matches your constraints and prior context exactly.
+No over-engineering. No extras.
+1) config/include_channels.yaml (sample, whitelist-first)
+2) src/filter_playlist.py (FULL FILE) 
+3) PyQt6 GUI — src/gui_channel_selector.py (FULL FILE)
+4) requirements.txt
+5) Install & run (exact)
+Next (not implemented yet, as requested)
+EPG merge (best-source wins)
+GitHub Actions (6-hour cron)
+This is ready to commit and run.
+
+and I did update this file as ther was a red flag on the chages specically config/include_channels.yaml was 103 lines and is now 63 lines
+
+also i see a flag as both the streamledger.yml and include_channels.yaml flies include
+pipeline:
+  max_channels: 500
+  min_channels: 400
+  update_epg_hours: 6
+  user_agent: "StreamLedger/1.0"
+
+sources:
+  m3u:
+    - https://iptv-org.github.io/iptv/languages/eng.m3u
+    - https://iptv-org.github.io/iptv/countries/ca.m3u
+    - https://iptv-org.github.io/iptv/countries/us.m3u
+    - https://iptv-org.github.io/iptv/countries/uk.m3u
+    - https://iptv-org.github.io/iptv/countries/au.m3u
+  epg:
+    - https://epg.pw/xmltv/epg_CA.xml
+    - https://epg.pw/xmltv/epg_US.xml
+    - https://epg.pw/xmltv/epg_GB.xml
+    - https://epg.pw/xmltv/epg_AU.xml
+    - https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
+    - https://i.mjh.nz/all/epg.xml
+
+regions:
+  CA:
+    markets: [Toronto, London, Barrie, Kitchener, Hamilton]
+    feeds: [East, West]
+  US:
+    markets: [Buffalo, Niagara Falls, NYC, San Diego, Los Angeles]
+    feeds: [East, West]
+    news_allow: [CNN, MSNBC]
+  UK:
+    markets: [London]
+  AU:
+    markets: [Sydney]
+
+include:
+  networks:
+    - ABC
+    - CBS
+    - NBC
+    - FOX
+    - PBS
+    - CTV
+    - Global
+    - Citytv
+    - BBC
+    - ITV
+    - Channel 4
+    - Nine
+    - Ten
+  specialty:
+    - A&E
+    - AMC
+    - HBO
+    - Crave
+    - Discovery
+    - Disney
+    - Paramount
+    - Showcase
+    - Starz
+    - Warner Bros
+
+exclude:
+  categories:
+    - Sports
+    - Religion
+    - Kids
+    - Cartoons
+    - Education
+  channels_regex:
+    - "(?i)regional"
+    - "(?i)sub"
+    - "(?i)backup"
+    - "(?i)test"
+    - "(?i)\\bHD\\s?\\d+\\b"
+  news_blacklist:
+    - FOX NEWS
+    - CNBC
+    - AL JAZEERA
+    - BBC NEWS
+    - SKY NEWS
+
+priorities:
+  stream:
+    protocol_order: [https, http]
+    resolution_order: [1080, 720]
+  epg:
+    source_order:
+      - epg.pw
+      - epgshare
+      - mjh
+
+validation:
+  timeout_sec: 10
+  retries: 2
+AND
+version: 1.0
+
+locations:
+  CA:
+    allow_suffix:
+      - Toronto
+      - Hamilton
+      - Kitchener
+      - London
+      - Barrie
+      - East
+      - West
+  US:
+    allow_suffix:
+      - Buffalo
+      - Niagara
+      - NYC
+      - New York
+      - East
+      - West
+      - Los Angeles
+      - San Diego
+    news_allow_only:
+      - CNN
+      - MSNBC
+  UK:
+    allow_suffix:
+      - London
+  AU:
+    allow_suffix:
+      - Sydney
+
+include:
+  networks:
+    # --- Canada ---
+    - tvg_id: "CTV.*"
+      tvg_name: "CTV.*"
+      group_title: "Canada"
+    - tvg_id: "Global.*"
+      tvg_name: "Global.*"
+      group_title: "Canada"
+    - tvg_id: "Citytv.*"
+      tvg_name: "Citytv.*"
+      group_title: "Canada"
+
+    # --- US ---
+    - tvg_id: "ABC.*"
+      tvg_name: "ABC.*"
+      group_title: "USA"
+    - tvg_id: "CBS.*"
+      tvg_name: "CBS.*"
+      group_title: "USA"
+    - tvg_id: "NBC.*"
+      tvg_name: "NBC.*"
+      group_title: "USA"
+    - tvg_id: "FOX.*"
+      tvg_name: "FOX(?! News).*"
+      group_title: "USA"
+    - tvg_name: "CNN"
+      group_title: "News"
+    - tvg_name: "MSNBC"
+      group_title: "News"
+
+    # --- UK ---
+    - tvg_name: "BBC One"
+      group_title: "UK"
+    - tvg_name: "BBC Two"
+      group_title: "UK"
+    - tvg_name: "ITV.*"
+      group_title: "UK"
+    - tvg_name: "Channel 4"
+      group_title: "UK"
+
+    # --- AU ---
+    - tvg_name: "Nine.*"
+      group_title: "Australia"
+    - tvg_name: "Ten.*"
+      group_title: "Australia"
+
+  specialty:
+    - tvg_name: "AMC"
+    - tvg_name: "A&E"
+    - tvg_name: "Discovery.*"
+    - tvg_name: "HBO.*"
+    - tvg_name: "Crave.*"
+    - tvg_name: "Showcase"
+    - tvg_name: "Starz"
+    - tvg_name: "Paramount.*"
+    - tvg_name: "Disney.*"
+    - tvg_name: "Warner.*"
+
+exclude:
+  group_title:
+    - Sports
+    - Religion
+    - Kids
+    - Education
+  name_regex:
+    - "(?i)backup"
+    - "(?i)test"
+    - "(?i)promo"
+    - "(?i)\\b4K\\b"
+    - "(?i)\\bSD\\b"
+this loogl redundent, so i think we need to clean up some things
+i) detemine if streamledger.yml or include_channels.yaml is teh correct file and make sure go forward the correct one is used and as there are difference what is teh correc content for teh correct file.
+Also the next time files, except the yaml file is prepared they need to follow a standard commetning and header with verioin standarad that ghatgpt shouidl alredy knwo and be applying as well as maklign sure that thre is loggin in alignmetn with teh memeroy standard and rules for chatgpt.
+so i need a new prompt, #2.1 (uptated prompt 2)
+
+
+-----------------------------------------
+Here is the reponse ouput, i didn't  include the actual code, but I included all other text from the reponse:
+A) Channel include / exclude strategy (deterministic)
+Principles
+Whitelist-first (explicit allow beats regex guessing)
+Match on tvg-id, then tvg-name, then group-title
+Location via name suffixes (Toronto, East, West, London, etc.)
+De-duplicate by canonical_key = normalized tvg-id OR normalized name
+Keep best single stream per canonical channel (first alive, highest resolution if known)
+B) Config — config/include_channels.yaml
+C) Desktop GUI — src/gui_channel_selector.py (Tkinter)
+Purpose
+Load merged M3U
+Checkbox list of channels
+Save selections → config/manual_overrides.yaml
+D) Core script — src/filter_playlist.py
+E) Handling multiples (rule)
+Step	Rule
+1	Same tvg-id → keep first alive
+2	Else same normalized name
+3	Prefer HTTPS
+4	Prefer East over West for CA/US unless overridden
+5	Stop after first valid
+F) Next steps (only)
+Implement helpers: functions/m3u.py, functions/http.py
+Add resolution sniffing (optional, fast)
+Wire GitHub Action (6-hour cron) to run filter_playlist.py
+Append EPG merge phase after channel lock-in
+
+as a follow-up this is a personal prefernce:
+as part of the ouput for promt 3 i got, can we get this developed on a better more modern tool, i thing Pty??? is better
+C) Desktop GUI — src/gui_channel_selector.py (Tkinter)
+Purpose
+Load merged M3U
+Checkbox list of channels
+Save selections → config/manual_overrides.yaml
+
+as well i will need command to install the python program used, and a requiremetns.txt file
+
+
+
+----------------------------------------------------------------
+here is the reponse ouput, i didn include the actual code, but i did teh balance of teh reponse.
+1) Repo structure — how each folder is used (strict, minimal)
+Folder	Purpose	Notes
+inputs/	Static seed lists (channel name aliases, allowlists)	No downloads
+config/	Single source of truth (YAML)	Regions, include/exclude, priorities
+src/	Python pipeline scripts	Small, composable
+functions/	Reusable helpers	HTTP, parsing, validation
+cache/	Raw downloaded M3U/XML	Timestamped, reusable
+temp/	Working/intermediate files	Safe to wipe
+data/	Normalized channel table (CSV/JSON)	Optional audit
+outputs/	Final hardened M3U + EPG XML	What TiviMate consumes
+logs/	Run logs	Per-run
+archive/	Prior outputs snapshots	Rollback
+web/	(Optional) status/README artifacts	GitHub Pages
+docs/	Minimal docs	No duplication
+2) Config format — single YAML, deterministic
+config/streamledger.yml
+3) Initial Python script outline — download + filter (no over-engineering)
+Entry point
+src/run_pipeline.py
+4) Next step (only)
+Create functions/ helpers (http.py, m3u.py, epg.py, paths.py) with minimal implementations and logging.
+---------------------------------------------

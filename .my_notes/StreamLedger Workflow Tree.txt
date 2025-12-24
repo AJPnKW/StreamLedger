@@ -1,0 +1,31 @@
+
+To get it in another AI: Ask for "workflow as a text-based tree diagram" or "hierarchical tree structure in ASCII/markdown".
+
+StreamLedger Workflow Tree
+
+├── 1. Initial Channel Selection (One-time manual)
+│   └── Run: python src/gui_channel_selector.py
+│       └── Saves: config/manual_overrides.yaml
+
+├── 2. Local Full Run (Manual update/test)
+│   └── Run: python src/run_pipeline.py
+│       ├── download_sources.py
+│       ├── parse_m3u.py
+│       ├── validate_streams.py
+│       ├── filter_playlist.py
+│       ├── merge_epg.py → build_epg.py
+│       └── write_outputs.py
+│           └── Outputs: outputs/curated.m3u + curated_epg.xml.gz
+
+├── 3. Local Testing
+│   └── Run: python src/test_pipeline.py
+│       └── Validates channel count & EPG coverage
+
+└── 4. Automated Run (Production)
+    └── Trigger: GitHub Actions (every 6 hours)
+        └── Executes: run_pipeline.py (same steps as #2)
+            └── Commits updated outputs/
+
+
+
+python src/gui_channel_selector.py	

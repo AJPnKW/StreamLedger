@@ -1,0 +1,35 @@
+
+
+
+GitHub File
+
+Here are all the file's GitHub raw links, please refrence these links to get the most current version of the files as needed, and please alway start with the curretn verion of teh file and then apply updates and changes, never start from scratch and generae a file from scratch.
+
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/requirements.txt
+#src
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/build_epg.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/download_sources.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/filter_playlist.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/gui_channel_selector.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/merge_epg.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/parse_m3u.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/run_pipeline.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/test_pipeline.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/validate_streams.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/write_outputs.py
+#
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/__pycache__/filter_playlist.cpython-312.pyc
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/__pycache__/gui_channel_selector.cpython-312.pyc
+#
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/include_channels.yaml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/manual_overrides.yaml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/streamledger.yml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/.github/workflows/update.yml
+#functions
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/functions/paths.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/functions/http.py
+
+
+
+
+
