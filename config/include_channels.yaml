@@ -1,100 +1,88 @@
-version: 1.0
+# StreamLedger — Reference / GUI Mapping Only
+# IMPORTANT:
+# - This file does NOT drive filtering logic.
+# - It exists to preserve your old structured mapping for future GUI tooling.
 
+schema_version: "1.2"
+doc_version: "1.2.1"
+last_updated_utc: "2025-12-24T00:00:00Z"
+
+status:
+  authority: false
+  used_for: ["human_reference", "future_gui_mapping_optional"]
+  single_source_of_truth: "config/streamledger.yml"
+
+changelog:
+  - version: "1.2.1"
+    date_utc: "2025-12-24"
+    summary:
+      - "Locked as reference-only to prevent drift vs streamledger.yml"
+
+# Legacy mapping retained (not executed by pipeline)
 locations:
   CA:
-    allow_suffix:
-      - Toronto
-      - Hamilton
-      - Kitchener
-      - London
-      - Barrie
-      - East
-      - West
+    allow_suffix: ["Toronto", "Hamilton", "Kitchener", "London", "Barrie", "East", "West"]
   US:
-    allow_suffix:
-      - Buffalo
-      - Niagara
-      - NYC
-      - New York
-      - East
-      - West
-      - Los Angeles
-      - San Diego
-    news_allow_only:
-      - CNN
-      - MSNBC
+    allow_suffix: ["Buffalo", "Niagara", "NYC", "New York", "East", "West", "Los Angeles", "San Diego"]
+    news_allow_only: ["CNN", "MSNBC"]
   UK:
-    allow_suffix:
-      - London
+    allow_suffix: ["London"]
   AU:
-    allow_suffix:
-      - Sydney
+    allow_suffix: ["Sydney"]
 
 include:
   networks:
-    # --- Canada ---
-    - tvg_id: "CTV.*"
-      tvg_name: "CTV.*"
-      group_title: "Canada"
-    - tvg_id: "Global.*"
-      tvg_name: "Global.*"
-      group_title: "Canada"
-    - tvg_id: "Citytv.*"
-      tvg_name: "Citytv.*"
-      group_title: "Canada"
+    - region: "CA"
+      tvg_id_regex: "CTV.*"
+      tvg_name_regex: "CTV.*"
+    - region: "CA"
+      tvg_id_regex: "Global.*"
+      tvg_name_regex: "Global.*"
+    - region: "CA"
+      tvg_id_regex: "Citytv.*"
+      tvg_name_regex: "Citytv.*"
 
-    # --- US ---
-    - tvg_id: "ABC.*"
-      tvg_name: "ABC.*"
-      group_title: "USA"
-    - tvg_id: "CBS.*"
-      tvg_name: "CBS.*"
-      group_title: "USA"
-    - tvg_id: "NBC.*"
-      tvg_name: "NBC.*"
-      group_title: "USA"
-    - tvg_id: "FOX.*"
-      tvg_name: "FOX(?! News).*"
-      group_title: "USA"
-    - tvg_name: "CNN"
-      group_title: "News"
-    - tvg_name: "MSNBC"
-      group_title: "News"
+    - region: "US"
+      tvg_id_regex: "ABC.*"
+      tvg_name_regex: "ABC.*"
+    - region: "US"
+      tvg_id_regex: "CBS.*"
+      tvg_name_regex: "CBS.*"
+    - region: "US"
+      tvg_id_regex: "NBC.*"
+      tvg_name_regex: "NBC.*"
+    - region: "US"
+      tvg_id_regex: "FOX.*"
+      tvg_name_regex: "FOX(?! News).*"
 
-    # --- UK ---
-    - tvg_name: "BBC One"
-      group_title: "UK"
-    - tvg_name: "BBC Two"
-      group_title: "UK"
-    - tvg_name: "ITV.*"
-      group_title: "UK"
-    - tvg_name: "Channel 4"
-      group_title: "UK"
+    - region: "UK"
+      tvg_name_regex: "BBC One"
+    - region: "UK"
+      tvg_name_regex: "BBC Two"
+    - region: "UK"
+      tvg_name_regex: "ITV.*"
+    - region: "UK"
+      tvg_name_regex: "Channel 4"
 
-    # --- AU ---
-    - tvg_name: "Nine.*"
-      group_title: "Australia"
-    - tvg_name: "Ten.*"
-      group_title: "Australia"
+    - region: "AU"
+      tvg_name_regex: "Nine.*"
+    - region: "AU"
+      tvg_name_regex: "Ten.*"
 
   specialty:
-    - tvg_name: "AMC"
-    - tvg_name: "A&E"
-    - tvg_name: "Discovery.*"
-    - tvg_name: "HBO.*"
-    - tvg_name: "Crave.*"
-    - tvg_name: "Showcase"
-    - tvg_name: "Starz"
-    - tvg_name: "Paramount.*"
-    - tvg_name: "Disney.*"
-    - tvg_name: "Warner.*"
+    - tvg_name_regex: "\\bAMC\\b"
+    - tvg_name_regex: "A\\s*&\\s*E|\\bA&E\\b"
+    - tvg_name_regex: "Discovery.*"
+    - tvg_name_regex: "HBO.*"
+    - tvg_name_regex: "Crave.*"
+    - tvg_name_regex: "Showcase"
+    - tvg_name_regex: "Starz"
+    - tvg_name_regex: "Paramount.*"
+    - tvg_name_regex: "Disney.*"
+    - tvg_name_regex: "Warner.*"
 
 exclude:
-  group_title:
-    - Sports
-    - Religion
-    - Kids
-    - Education
+  group_title: ["Sports", "Religion", "Kids", "Education"]
   name_regex:
     - "(?i)backup"
     - "(?i)test"

@@ -1,66 +1,87 @@
-version: 1.0
+schema_version: "1.2"
+doc_version: "1.2.1"
+last_updated_utc: "2025-12-24T00:00:00Z"
+
+changelog:
+  - version: "1.2.1"
+    date_utc: "2025-12-24"
+    summary:
+      - "Removed duplicated YAML block risk (single definitive document)"
+      - "Added manual_overrides wiring keys"
+      - "Added light/deep validation profiles (knobs), plus EPG soft/hard thresholds"
 
 pipeline:
-  max_channels: 500
+  # Working assumptions (tune anytime)
   min_channels: 400
-  update_epg_hours: 6
-  user_agent: "StreamLedger/1.0"
+  max_channels: 750
+  write_report: true
+  user_agent: "StreamLedger/1.2.1"
+
+  # EPG coverage = knob (warn below soft, hard-fail only when catastrophic)
+  epg_coverage_soft_min: 0.80
+  epg_coverage_hard_fail_below: 0.30
 
 sources:
   m3u:
-    - https://iptv-org.github.io/iptv/languages/eng.m3u
-    - https://iptv-org.github.io/iptv/countries/ca.m3u
-    - https://iptv-org.github.io/iptv/countries/us.m3u
-    - https://iptv-org.github.io/iptv/countries/uk.m3u
-    - https://iptv-org.github.io/iptv/countries/au.m3u
+    - "https://iptv-org.github.io/iptv/languages/eng.m3u"
+    - "https://iptv-org.github.io/iptv/countries/ca.m3u"
+    - "https://iptv-org.github.io/iptv/countries/us.m3u"
+    - "https://iptv-org.github.io/iptv/countries/uk.m3u"
+    - "https://iptv-org.github.io/iptv/countries/au.m3u"
+
   epg:
-    - https://epg.pw/xmltv/epg_CA.xml
-    - https://epg.pw/xmltv/epg_US.xml
-    - https://epg.pw/xmltv/epg_GB.xml
-    - https://epg.pw/xmltv/epg_AU.xml
-    - https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
-    - https://i.mjh.nz/all/epg.xml
+    - "https://epg.pw/xmltv/epg_CA.xml"
+    - "https://epg.pw/xmltv/epg_US.xml"
+    - "https://epg.pw/xmltv/epg_GB.xml"
+    - "https://epg.pw/xmltv/epg_AU.xml"
+    - "https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml"
+    - "https://i.mjh.nz/all/epg.xml"
 
 regions:
   CA:
-    locations: [Toronto, Hamilton, Kitchener, London, Barrie]
-    feeds: [East, West]
+    allow_suffix: ["Toronto", "Hamilton", "Kitchener", "London", "Barrie", "East", "West"]
+    feeds: ["East", "West"]
   US:
-    locations: [Buffalo, NYC, New York, San Diego, Los Angeles]
-    feeds: [East, West]
-    news_allow_only: [CNN, MSNBC]
+    allow_suffix: ["Buffalo", "Niagara", "NYC", "New York", "Los Angeles", "San Diego", "East", "West"]
+    feeds: ["East", "West"]
   UK:
-    locations: [London]
+    allow_suffix: ["London"]
   AU:
-    locations: [Sydney]
-
-match_priority:
-  - tvg-id
-  - tvg-name
-  - group-title
+    allow_suffix: ["Sydney"]
 
 include:
+  # Allow-only tokens (whitelist) for News
+  news_allow_only: ["CNN", "MSNBC"]
+
+  # Regex patterns (case-insensitive) applied to tvg-name / display name
   networks:
-    - "CTV"
-    - "Global"
-    - "Citytv"
-    - "ABC"
-    - "CBS"
-    - "NBC"
-    - "FOX(?! News)"
-    - "PBS"
-    - "BBC One"
-    - "BBC Two"
-    - "ITV"
-    - "Channel 4"
-    - "Nine"
-    - "Ten"
+    # Canada
+    - "\\bCTV\\b"
+    - "\\bGlobal\\b"
+    - "\\bCitytv\\b"
+
+    # USA majors
+    - "\\bABC\\b"
+    - "\\bCBS\\b"
+    - "\\bNBC\\b"
+    - "\\bFOX\\b(?!\\s*News)"
+    - "\\bPBS\\b"
+
+    # UK majors
+    - "BBC\\s*One"
+    - "BBC\\s*Two"
+    - "\\bITV\\b"
+    - "Channel\\s*4"
+
+    # AU majors
+    - "\\bNine\\b"
+    - "\\bTen\\b"
 
   specialty:
-    - "AMC"
-    - "A&E"
+    - "\\bAMC\\b"
+    - "A\\s*&\\s*E|\\bA&E\\b"
     - "Discovery"
-    - "HBO"
+    - "\\bHBO\\b"
     - "Crave"
     - "Showcase"
     - "Starz"
@@ -69,120 +90,42 @@ include:
     - "Warner"
 
 exclude:
-  group_title:
-    - Sports
-    - Religion
-    - Kids
-    - Education
+  # Exact group-title blocks (EXTINF group-title)
+  group_title: ["Sports", "Religion", "Kids", "Education"]
 
+  # Regex applied to tvg-name / display name
   name_regex:
-    - "(?i)test"
-    - "(?i)backup"
-    - "(?i)promo"
+    - "(?i)\\bbackup\\b"
+    - "(?i)\\btest\\b"
+    - "(?i)\\bpromo\\b"
     - "(?i)\\bSD\\b"
-    - "(?i)4K"
+    - "(?i)\\b4K\\b"
+    - "(?i)\\bkids\\b"
+    - "(?i)\\bsports\\b"
 
 priorities:
   stream:
-    protocol_order: [https, http]
-    feed_order: [East, West]
-  epg:
-    source_order: [epg.pw, epgshare, mjh]
+    protocol_order: ["https", "http"]
+    feed_order: ["East", "West"]
+
+epg:
+  match_priority: ["tvg-id", "tvg-name", "display-name"]
+  source_order: ["epg.pw", "epgshare", "mjh"]
 
 validation:
-  timeout_sec: 6
-  retries: 1
-version: 1.0
+  # VALIDATION_MODE env var: light | deep | none  (default: light)
+  soft_alive_on_403_405: true
 
-pipeline:
-  max_channels: 500
-  min_channels: 400
-  update_epg_hours: 6
-  user_agent: "StreamLedger/1.0"
+  light:
+    timeout_sec: 6
+    retries: 1
 
-sources:
-  m3u:
-    - https://iptv-org.github.io/iptv/languages/eng.m3u
-    - https://iptv-org.github.io/iptv/countries/ca.m3u
-    - https://iptv-org.github.io/iptv/countries/us.m3u
-    - https://iptv-org.github.io/iptv/countries/uk.m3u
-    - https://iptv-org.github.io/iptv/countries/au.m3u
-  epg:
-    - https://epg.pw/xmltv/epg_CA.xml
-    - https://epg.pw/xmltv/epg_US.xml
-    - https://epg.pw/xmltv/epg_GB.xml
-    - https://epg.pw/xmltv/epg_AU.xml
-    - https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
-    - https://i.mjh.nz/all/epg.xml
+  deep:
+    timeout_sec: 10
+    retries: 2
+    range_bytes: "0-0"
 
-regions:
-  CA:
-    locations: [Toronto, Hamilton, Kitchener, London, Barrie]
-    feeds: [East, West]
-  US:
-    locations: [Buffalo, NYC, New York, San Diego, Los Angeles]
-    feeds: [East, West]
-    news_allow_only: [CNN, MSNBC]
-  UK:
-    locations: [London]
-  AU:
-    locations: [Sydney]
-
-match_priority:
-  - tvg-id
-  - tvg-name
-  - group-title
-
-include:
-  networks:
-    - "CTV"
-    - "Global"
-    - "Citytv"
-    - "ABC"
-    - "CBS"
-    - "NBC"
-    - "FOX(?! News)"
-    - "PBS"
-    - "BBC One"
-    - "BBC Two"
-    - "ITV"
-    - "Channel 4"
-    - "Nine"
-    - "Ten"
-
-  specialty:
-    - "AMC"
-    - "A&E"
-    - "Discovery"
-    - "HBO"
-    - "Crave"
-    - "Showcase"
-    - "Starz"
-    - "Paramount"
-    - "Disney"
-    - "Warner"
-
-exclude:
-  group_title:
-    - Sports
-    - Religion
-    - Kids
-    - Education
-
-  name_regex:
-    - "(?i)test"
-    - "(?i)backup"
-    - "(?i)promo"
-    - "(?i)\\bSD\\b"
-    - "(?i)4K"
-
-priorities:
-  stream:
-    protocol_order: [https, http]
-    feed_order: [East, West]
-  epg:
-    source_order: [epg.pw, epgshare, mjh]
-
-validation:
-  timeout_sec: 6
-  retries: 1
+manual_overrides:
+  enabled: true
+  file: "config/manual_overrides.yaml"
+  precedence: ["tvg-id", "name", "name_regex"]

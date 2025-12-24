@@ -1,0 +1,103 @@
+version: 1.0
+
+locations:
+  CA:
+    allow_suffix:
+      - Toronto
+      - Hamilton
+      - Kitchener
+      - London
+      - Barrie
+      - East
+      - West
+  US:
+    allow_suffix:
+      - Buffalo
+      - Niagara
+      - NYC
+      - New York
+      - East
+      - West
+      - Los Angeles
+      - San Diego
+    news_allow_only:
+      - CNN
+      - MSNBC
+  UK:
+    allow_suffix:
+      - London
+  AU:
+    allow_suffix:
+      - Sydney
+
+include:
+  networks:
+    # --- Canada ---
+    - tvg_id: "CTV.*"
+      tvg_name: "CTV.*"
+      group_title: "Canada"
+    - tvg_id: "Global.*"
+      tvg_name: "Global.*"
+      group_title: "Canada"
+    - tvg_id: "Citytv.*"
+      tvg_name: "Citytv.*"
+      group_title: "Canada"
+
+    # --- US ---
+    - tvg_id: "ABC.*"
+      tvg_name: "ABC.*"
+      group_title: "USA"
+    - tvg_id: "CBS.*"
+      tvg_name: "CBS.*"
+      group_title: "USA"
+    - tvg_id: "NBC.*"
+      tvg_name: "NBC.*"
+      group_title: "USA"
+    - tvg_id: "FOX.*"
+      tvg_name: "FOX(?! News).*"
+      group_title: "USA"
+    - tvg_name: "CNN"
+      group_title: "News"
+    - tvg_name: "MSNBC"
+      group_title: "News"
+
+    # --- UK ---
+    - tvg_name: "BBC One"
+      group_title: "UK"
+    - tvg_name: "BBC Two"
+      group_title: "UK"
+    - tvg_name: "ITV.*"
+      group_title: "UK"
+    - tvg_name: "Channel 4"
+      group_title: "UK"
+
+    # --- AU ---
+    - tvg_name: "Nine.*"
+      group_title: "Australia"
+    - tvg_name: "Ten.*"
+      group_title: "Australia"
+
+  specialty:
+    - tvg_name: "AMC"
+    - tvg_name: "A&E"
+    - tvg_name: "Discovery.*"
+    - tvg_name: "HBO.*"
+    - tvg_name: "Crave.*"
+    - tvg_name: "Showcase"
+    - tvg_name: "Starz"
+    - tvg_name: "Paramount.*"
+    - tvg_name: "Disney.*"
+    - tvg_name: "Warner.*"
+
+exclude:
+  group_title:
+    - Sports
+    - Religion
+    - Kids
+    - Education
+  name_regex:
+    - "(?i)backup"
+    - "(?i)test"
+    - "(?i)promo"
+    - "(?i)\\b4K\\b"
+    - "(?i)\\bSD\\b"
