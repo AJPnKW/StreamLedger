@@ -1,2 +1,85 @@
-- https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
-- https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml
+
+Take over this project sa the project manager, the atchtects, the deigner, developer, TEster, QA and documentation reources.
+please review the below as well as the github files 
+
+StreamLedger Project Overview
+Purpose: Automate creation of curated M3U playlist (~400-500 English channels from CA, US, UK, AU) and matching EPG for TiviMate, using public sources. Filter to specific regions/networks/specialties, exclude unwanted categories, validate streams, update via GitHub Actions.
+Architecture:
+
+Repo root folders: config/, src/, functions/, outputs/, cache/, logs/, archive/, docs/
+config/streamledger.yml: Single source of truth (sources, include/exclude, regions, validation)
+config/manual_overrides.yaml: GUI-saved user overrides
+functions/: Reusable helpers (http.py fetch/head, m3u.py read/write/parse, paths.py)
+src/: Pipeline scripts
+download_sources.py: Fetch M3U/EPG to cache
+parse_m3u.py / filter_playlist.py: Parse, filter, de-duplicate
+validate_streams.py: HEAD check alive streams
+build_epg.py: Merge EPG sources for curated channels
+write_outputs.py: Write outputs/curated.m3u + curated_epg.xml.gz
+gui_channel_selector.py: PyQt6 GUI for manual channel tweaks
+run_pipeline.py: Entry point (orchestrates all)
+test_pipeline.py: Validate count/coverage
+
+.github/workflows/update.yml: Cron every 6 hours, run pipeline, commit outputs
+
+Workflow:
+
+One-time: Run GUI for manual overrides (optional)
+Local: python -m src.run_pipeline from repo root
+Auto: GitHub Actions updates outputs/
+TiviMate: Use raw GitHub URLs for curated.m3u and curated_epg.xml.gz
+
+Dependencies: requirements.txt (requests, PyYAML, PyQt6)
+Status: Functional core pipeline; run local first to generate outputs.
+
+Here are the existing file for this project.
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/requirements.txt
+#src
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/build_epg.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/download_sources.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/filter_playlist.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/gui_channel_selector.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/merge_epg.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/parse_m3u.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/run_pipeline.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/test_pipeline.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/validate_streams.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/write_outputs.py
+#
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/__pycache__/filter_playlist.cpython-312.pyc
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/src/__pycache__/gui_channel_selector.cpython-312.pyc
+#
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/include_channels.yaml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/manual_overrides.yaml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/config/streamledger.yml
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/.github/workflows/update.yml
+#functions
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/functions/paths.py
+https://raw.githubusercontent.com/AJPnKW/StreamLedger/refs/heads/main/functions/http.py
+
+Here is the workflow that was design but has not been eplosed with helper functions, which i think is uneeded.
+
+StreamLedger Workflow Tree
+
+├── 1. Initial Channel Selection (One-time manual)
+│   └── Run: python src/gui_channel_selector.py
+│       └── Saves: config/manual_overrides.yaml
+
+├── 2. Local Full Run (Manual update/test)
+│   └── Run: python src/run_pipeline.py
+│       ├── download_sources.py
+│       ├── parse_m3u.py
+│       ├── validate_streams.py
+│       ├── filter_playlist.py
+│       ├── merge_epg.py → build_epg.py
+│       └── write_outputs.py
+│           └── Outputs: outputs/curated.m3u + curated_epg.xml.gz
+
+├── 3. Local Testing
+│   └── Run: python src/test_pipeline.py
+│       └── Validates channel count & EPG coverage
+
+└── 4. Automated Run (Production)
+    └── Trigger: GitHub Actions (every 6 hours)
+        └── Executes: run_pipeline.py (same steps as #2)
+            └── Commits updated outputs/

@@ -1,2 +1,6 @@
-include: []
-exclude: []
+# Optional. GUI writes here.
+# This file is intentionally stable and version-controlled.
+
+overrides:
+  include: []   # list of canonical keys OR exact tvg-ids OR exact names (future use)
+  exclude: []   # list of canonical keys OR exact tvg-ids OR exact names (future use)

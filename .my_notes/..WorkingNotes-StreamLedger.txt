@@ -1,6 +1,39 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 1 (one command) to produce the exact “new line counts” + diff locally
+That gives you an authoritative “new line count” table from the exact files you’ll commit.
+
+
+Run this in the repo root after you paste/replace the files:
+
+git status
+Get-ChildItem -File -Recurse config,src,".github\workflows" |
+  Where-Object { $_.Name -match '\.(py|yml|yaml|txt)$' } |
+  Select-Object @{n="file";e={$_.FullName.Replace((Get-Location).Path+'\','')}}, @{n="lines";e={(Get-Content $_.FullName -Raw).Split("`n").Count}} |
+  Sort-Object file
+
+
+That gives you an authoritative “new line count” table from the exact files you’ll commit.
+
+
+
+
 https://www.facebook.com/IfYouLivedInClifford/posts/take-that1921/763580716302714/
 https://www.facebook.com/IfYouLivedInClifford/posts/take-that1921/763580716302714/
 
