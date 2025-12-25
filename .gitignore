@@ -1,5 +1,5 @@
-*.bak
-*.BAK
+.bak
+.BAK
 .my_notes/
 __pycache__/
 *.pyc
