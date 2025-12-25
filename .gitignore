@@ -1,13 +1,32 @@
-.bak
-.BAK
+# StreamLedger repo hygiene
+
+# backups
+*.bak
+*.BAK
+
+# notes
 .my_notes/
+
+# python bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# venvs (never commit)
+.venv/
+venv/
+.env
+
+# caches (never commit)
 .cache/
 .cache_*
-venv/
-.venv/
-.env
+cache/
+cache/**
+
+# logs (never commit)
+logs/
+
+# OS cruft
 .DS_Store
+Thumbs.db
