@@ -8,3 +8,6 @@ venv/
 .venv/
 .env
 .DS_Store
+*.bak
+*.BAK
+.my_notes/
