@@ -1,0 +1,84 @@
+{
+  "timestamp_utc": "2025-12-25T01:01:44Z",
+  "app": "StreamLedger",
+  "component": "filter_playlist",
+  "version": "1.2.1",
+  "validation_mode": "light",
+  "counts": {
+    "parsed_total": 4284,
+    "matched_pre_dedupe": 428,
+    "deduped_pre_validation": 220,
+    "validated_alive": 144,
+    "final_written": 144,
+    "min_channels": 400,
+    "max_channels": 750
+  },
+  "validation": {
+    "alive": 144,
+    "dead": 76,
+    "soft": 40,
+    "reasons": {
+      "head=200": 104,
+      "exc=ConnectTimeout": 7,
+      "exc=ConnectionError": 61,
+      "head_soft=403": 31,
+      "head_soft=405": 9,
+      "head_fail=404": 5,
+      "head_fail=521": 1,
+      "exc=ReadTimeout": 1,
+      "head_fail=500": 1
+    }
+  },
+  "warnings": [
+    "final_written_below_min: 144 < 400",
+    "epg_coverage_below_soft_min:0.0486<0.80",
+    "epg_coverage_below_hard_fail:0.0486<0.30"
+  ],
+  "overrides": {
+    "excluded_removed": 0,
+    "included_added": 0
+  },
+  "epg": {
+    "sources": [
+      {
+        "url": "https://epg.pw/xmltv/epg_CA.xml",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg_CA.xml"
+      },
+      {
+        "url": "https://epg.pw/xmltv/epg_US.xml",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg_US.xml"
+      },
+      {
+        "url": "https://epg.pw/xmltv/epg_GB.xml",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg_GB.xml"
+      },
+      {
+        "url": "https://epg.pw/xmltv/epg_AU.xml",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg_AU.xml"
+      },
+      {
+        "url": "https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml.gz",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg_ripper_ALL_SOURCES1.xml.gz"
+      },
+      {
+        "url": "https://i.mjh.nz/all/epg.xml",
+        "ok": true,
+        "reason": "ok",
+        "file": "epg.xml"
+      }
+    ],
+    "matched_channels": 7,
+    "target_channels": 144,
+    "coverage": 0.0486
+  }
+}

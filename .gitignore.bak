@@ -1,3 +1,6 @@
+.bak
+.BAK
+.my_notes/
 __pycache__/
 *.pyc
 *.pyo
@@ -8,6 +11,3 @@ venv/
 .venv/
 .env
 .DS_Store
-*.bak
-*.BAK
-.my_notes/
