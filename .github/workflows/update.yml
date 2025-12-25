@@ -3,7 +3,7 @@ name: StreamLedger Update
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 13 * * *"   # 13:00 UTC ~= 08:00 America/Toronto (winter)
+    - cron: "0 13 * * *" # 13:00 UTC ~= 08:00 America/Toronto (winter)
 
 jobs:
   build:
@@ -36,10 +36,13 @@ jobs:
         run: |
           git config user.name "streamledger-bot"
           git config user.email "streamledger-bot@users.noreply.github.com"
-          git add outputs cache/*.json || true
+
+          git add outputs || true
+
           if git diff --cached --quiet; then
             echo "No changes."
             exit 0
           fi
+
           git commit -m "Update curated playlist and EPG"
           git push
