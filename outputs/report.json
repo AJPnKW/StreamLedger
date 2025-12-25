@@ -1,5 +1,5 @@
 {
-  "timestamp_utc": "2025-12-25T01:01:44Z",
+  "timestamp_utc": "2025-12-25T01:47:02Z",
   "app": "StreamLedger",
   "component": "filter_playlist",
   "version": "1.2.1",
@@ -8,18 +8,18 @@
     "parsed_total": 4284,
     "matched_pre_dedupe": 428,
     "deduped_pre_validation": 220,
-    "validated_alive": 144,
-    "final_written": 144,
+    "validated_alive": 145,
+    "final_written": 145,
     "min_channels": 400,
     "max_channels": 750
   },
   "validation": {
-    "alive": 144,
-    "dead": 76,
+    "alive": 145,
+    "dead": 75,
     "soft": 40,
     "reasons": {
-      "head=200": 104,
-      "exc=ConnectTimeout": 7,
+      "head=200": 105,
+      "exc=ConnectTimeout": 6,
       "exc=ConnectionError": 61,
       "head_soft=403": 31,
       "head_soft=405": 9,
@@ -30,9 +30,9 @@
     }
   },
   "warnings": [
-    "final_written_below_min: 144 < 400",
-    "epg_coverage_below_soft_min:0.0486<0.80",
-    "epg_coverage_below_hard_fail:0.0486<0.30"
+    "final_written_below_min: 145 < 400",
+    "epg_coverage_below_soft_min:0.0483<0.80",
+    "epg_coverage_below_hard_fail:0.0483<0.30"
   ],
   "overrides": {
     "excluded_removed": 0,
@@ -78,7 +78,7 @@
       }
     ],
     "matched_channels": 7,
-    "target_channels": 144,
-    "coverage": 0.0486
+    "target_channels": 145,
+    "coverage": 0.0483
   }
 }
