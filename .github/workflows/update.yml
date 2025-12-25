@@ -22,18 +22,30 @@ jobs:
 
       - name: Install deps
         run: |
+          set -e
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Debug snapshot
+        run: |
+          set -e
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "---- config/streamledger.yml ----"
+          python -c "from pathlib import Path; print(Path('config/streamledger.yml').read_text(encoding='utf-8')[:600])"
+          echo "---------------------------------"
 
       - name: Run pipeline (light)
         env:
           VALIDATION_MODE: light
         run: |
+          set -e
           python src/filter_playlist.py
           python src/build_epg.py
 
       - name: Commit outputs if changed
         run: |
+          set -e
           git config user.name "streamledger-bot"
           git config user.email "streamledger-bot@users.noreply.github.com"
 
