@@ -6,18 +6,126 @@ changelog:
   - version: "1.2.1"
     date_utc: "2025-12-24"
     summary:
-      - "Expanded overrides into explicit lists (tvg-id, exact name, regex)"
-      - "Designed to be applied by src/filter_playlist.py"
+      - "Removed duplicated YAML block risk (single definitive document)"
+      - "Added manual_overrides wiring keys"
+      - "Added light/deep validation profiles (knobs), plus EPG soft/hard thresholds"
 
-overrides:
-  # Highest priority: exact tvg-id
-  include_tvg_ids: []
-  exclude_tvg_ids: []
+pipeline:
+  # Working assumptions (tune anytime)
+  min_channels: 400
+  max_channels: 750
+  write_report: true
+  user_agent: "StreamLedger/1.2.1"
 
-  # Next priority: exact channel names (tvg-name OR display name)
-  include_names: []
-  exclude_names: []
+  # EPG coverage = knob (warn below soft, hard-fail only when catastrophic)
+  epg_coverage_soft_min: 0.80
+  epg_coverage_hard_fail_below: 0.30
 
-  # Advanced: regex (case-insensitive recommended)
-  include_name_regex: []
-  exclude_name_regex: []
+sources:
+  m3u:
+    - "https://iptv-org.github.io/iptv/languages/eng.m3u"
+    - "https://iptv-org.github.io/iptv/countries/ca.m3u"
+    - "https://iptv-org.github.io/iptv/countries/us.m3u"
+    - "https://iptv-org.github.io/iptv/countries/uk.m3u"
+    - "https://iptv-org.github.io/iptv/countries/au.m3u"
+
+  epg:
+    - "https://epg.pw/xmltv/epg_CA.xml"
+    - "https://epg.pw/xmltv/epg_US.xml"
+    - "https://epg.pw/xmltv/epg_GB.xml"
+    - "https://epg.pw/xmltv/epg_AU.xml"
+    - "https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml"
+    - "https://i.mjh.nz/all/epg.xml"
+
+regions:
+  CA:
+    allow_suffix: ["Toronto", "Hamilton", "Kitchener", "London", "Barrie", "East", "West"]
+    feeds: ["East", "West"]
+  US:
+    allow_suffix: ["Buffalo", "Niagara", "NYC", "New York", "Los Angeles", "San Diego", "East", "West"]
+    feeds: ["East", "West"]
+  UK:
+    allow_suffix: ["London"]
+  AU:
+    allow_suffix: ["Sydney"]
+
+include:
+  # Allow-only tokens (whitelist) for News
+  news_allow_only: ["CNN", "MSNBC"]
+
+  # Regex patterns (case-insensitive) applied to tvg-name / display name
+  networks:
+    # Canada
+    - "\\bCTV\\b"
+    - "\\bGlobal\\b"
+    - "\\bCitytv\\b"
+
+    # USA majors
+    - "\\bABC\\b"
+    - "\\bCBS\\b"
+    - "\\bNBC\\b"
+    - "\\bFOX\\b(?!\\s*News)"
+    - "\\bPBS\\b"
+
+    # UK majors
+    - "BBC\\s*One"
+    - "BBC\\s*Two"
+    - "\\bITV\\b"
+    - "Channel\\s*4"
+
+    # AU majors
+    - "\\bNine\\b"
+    - "\\bTen\\b"
+
+  specialty:
+    - "\\bAMC\\b"
+    - "A\\s*&\\s*E|\\bA&E\\b"
+    - "Discovery"
+    - "\\bHBO\\b"
+    - "Crave"
+    - "Showcase"
+    - "Starz"
+    - "Paramount"
+    - "Disney"
+    - "Warner"
+
+exclude:
+  # Exact group-title blocks (EXTINF group-title)
+  group_title: ["Sports", "Religion", "Kids", "Education"]
+
+  # Regex applied to tvg-name / display name
+  name_regex:
+    - "(?i)\\bbackup\\b"
+    - "(?i)\\btest\\b"
+    - "(?i)\\bpromo\\b"
+    - "(?i)\\bSD\\b"
+    - "(?i)\\b4K\\b"
+    - "(?i)\\bkids\\b"
+    - "(?i)\\bsports\\b"
+
+priorities:
+  stream:
+    protocol_order: ["https", "http"]
+    feed_order: ["East", "West"]
+
+epg:
+  match_priority: ["tvg-id", "tvg-name", "display-name"]
+  source_order: ["epg.pw", "epgshare", "mjh"]
+
+validation:
+  # VALIDATION_MODE env var: light | deep | none  (default: light)
+  soft_alive_on_403_405: true
+
+  light:
+    timeout_sec: 6
+    retries: 1
+
+  deep:
+    timeout_sec: 10
+    retries: 2
+    range_bytes: "0-0"
+
+manual_overrides:
+  enabled: true
+  file: "config/manual_overrides.yaml"
+  precedence: ["tvg-id", "name", "name_regex"]
