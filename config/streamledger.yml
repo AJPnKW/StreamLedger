@@ -6,18 +6,18 @@ changelog:
   - version: "1.2.1"
     date_utc: "2025-12-24"
     summary:
-      - "Removed duplicated YAML block risk (single definitive document)"
-      - "Added manual_overrides wiring keys"
-      - "Added light/deep validation profiles (knobs), plus EPG soft/hard thresholds"
+      - "Single authoritative config (no duplication)"
+      - "Resilient EPG build with soft/hard coverage thresholds"
+      - "Manual overrides wired as first-class tuning knob"
+      - "Light / deep validation profiles"
 
 pipeline:
-  # Working assumptions (tune anytime)
   min_channels: 400
   max_channels: 750
   write_report: true
   user_agent: "StreamLedger/1.2.1"
 
-  # EPG coverage = knob (warn below soft, hard-fail only when catastrophic)
+  # EPG coverage knobs
   epg_coverage_soft_min: 0.80
   epg_coverage_hard_fail_below: 0.30
 
@@ -34,46 +34,49 @@ sources:
     - "https://epg.pw/xmltv/epg_US.xml"
     - "https://epg.pw/xmltv/epg_GB.xml"
     - "https://epg.pw/xmltv/epg_AU.xml"
-    - "https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml"
+    - "https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml.gz"
     - "https://i.mjh.nz/all/epg.xml"
 
 regions:
   CA:
     allow_suffix: ["Toronto", "Hamilton", "Kitchener", "London", "Barrie", "East", "West"]
     feeds: ["East", "West"]
+
   US:
     allow_suffix: ["Buffalo", "Niagara", "NYC", "New York", "Los Angeles", "San Diego", "East", "West"]
     feeds: ["East", "West"]
+
   UK:
     allow_suffix: ["London"]
+
   AU:
     allow_suffix: ["Sydney"]
 
 include:
-  # Allow-only tokens (whitelist) for News
+  # Allow-only tokens for News
   news_allow_only: ["CNN", "MSNBC"]
 
-  # Regex patterns (case-insensitive) applied to tvg-name / display name
+  # Regex patterns applied to tvg-name / display-name
   networks:
     # Canada
     - "\\bCTV\\b"
     - "\\bGlobal\\b"
     - "\\bCitytv\\b"
 
-    # USA majors
+    # USA
     - "\\bABC\\b"
     - "\\bCBS\\b"
     - "\\bNBC\\b"
     - "\\bFOX\\b(?!\\s*News)"
     - "\\bPBS\\b"
 
-    # UK majors
+    # UK
     - "BBC\\s*One"
     - "BBC\\s*Two"
     - "\\bITV\\b"
     - "Channel\\s*4"
 
-    # AU majors
+    # AU
     - "\\bNine\\b"
     - "\\bTen\\b"
 
@@ -90,10 +93,12 @@ include:
     - "Warner"
 
 exclude:
-  # Exact group-title blocks (EXTINF group-title)
-  group_title: ["Sports", "Religion", "Kids", "Education"]
+  group_title:
+    - "Sports"
+    - "Religion"
+    - "Kids"
+    - "Education"
 
-  # Regex applied to tvg-name / display name
   name_regex:
     - "(?i)\\bbackup\\b"
     - "(?i)\\btest\\b"
@@ -113,7 +118,7 @@ epg:
   source_order: ["epg.pw", "epgshare", "mjh"]
 
 validation:
-  # VALIDATION_MODE env var: light | deep | none  (default: light)
+  # VALIDATION_MODE env var: light | deep | none
   soft_alive_on_403_405: true
 
   light:
