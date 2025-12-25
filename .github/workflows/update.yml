@@ -22,30 +22,50 @@ jobs:
 
       - name: Install deps
         run: |
-          set -e
+          set -euxo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Debug snapshot
         run: |
-          set -e
+          set -euxo pipefail
           echo "PWD=$(pwd)"
+          python --version
+          pip --version
           ls -la
-          echo "---- config/streamledger.yml ----"
-          python -c "from pathlib import Path; print(Path('config/streamledger.yml').read_text(encoding='utf-8')[:600])"
-          echo "---------------------------------"
+          echo "---- streamledger.yml (first 1200 chars) ----"
+          python -c "from pathlib import Path; p=Path('config/streamledger.yml'); print(p.read_text(encoding='utf-8')[:1200] if p.exists() else 'MISSING config/streamledger.yml')"
+          echo "--------------------------------------------"
 
-      - name: Run pipeline (light)
+      - name: Run filter step (light)
         env:
           VALIDATION_MODE: light
         run: |
-          set -e
+          set -euxo pipefail
           python src/filter_playlist.py
+          echo "FILTER_EXIT=$?"
+
+      - name: Run EPG step (light)
+        env:
+          VALIDATION_MODE: light
+        run: |
+          set -euxo pipefail
           python src/build_epg.py
+          echo "EPG_EXIT=$?"
+
+      - name: Upload debug artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamledger-artifacts
+          path: |
+            outputs/**
+            logs/**
+            cache/*.json
 
       - name: Commit outputs if changed
         run: |
-          set -e
+          set -euxo pipefail
           git config user.name "streamledger-bot"
           git config user.email "streamledger-bot@users.noreply.github.com"
 
