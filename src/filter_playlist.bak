@@ -1,465 +1,473 @@
-"""
-StreamLedger — Filter Playlist (Production Step 1)
-
-Purpose
-- Download public M3U sources, parse channels, apply include/exclude rules, validate streams,
-  apply manual overrides, and write outputs/curated.m3u plus outputs/report.json.
-
-Inputs
-- config/streamledger.yml (authoritative)
-- config/manual_overrides.yaml (optional; additive)
-
-Outputs
-- outputs/curated.m3u
-- outputs/report.json
-
-Environment
-- VALIDATION_MODE: light | deep | none  (default: light)
-
-Change Log
-- 1.2.1 (2025-12-24): Single-config selection + manual overrides + light/deep validation knobs + report warnings.
-"""
+#!/usr/bin/env python3
+# ==============================================================================
+# [FILE]     src/filter_playlist.py
+# [PROJECT]  StreamLedger
+# [PURPOSE]  End-to-end playlist build step:
+#            - Download M3U sources
+#            - Parse channels
+#            - De-duplicate
+#            - Validate streams (light/deep/none)
+#            - Apply include/exclude rules + manual overrides
+#            - Write outputs/curated.m3u + outputs/report.json
+#            - Write logs/filter_playlist.debug.json for RCA
+#
+# [CI]       Never hard-fails on low channel count (warn only). Hard-fails only
+#            on true fatal errors (missing config, download total failure).
+#
+# [VERSION]  1.2.3
+# [UPDATED]  2025-12-24
+# ==============================================================================
 
 from __future__ import annotations
 
 import json
 import os
 import re
+import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import requests
 import yaml
 
-__app__ = "StreamLedger"
-__component__ = "filter_playlist"
-__version__ = "1.2.1"
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-CONFIG_DIR = BASE_DIR / "config"
+CONFIG_PATH = BASE_DIR / "config" / "streamledger.yml"
+MANUAL_OVERRIDES_PATH = BASE_DIR / "config" / "manual_overrides.yaml"
+
 CACHE_DIR = BASE_DIR / "cache"
 OUTPUTS_DIR = BASE_DIR / "outputs"
+LOGS_DIR = BASE_DIR / "logs"
 
-CACHE_DIR.mkdir(exist_ok=True)
-OUTPUTS_DIR.mkdir(exist_ok=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+PARSED_JSON = CACHE_DIR / "parsed_channels.json"
+CURATED_M3U = OUTPUTS_DIR / "curated.m3u"
+REPORT_JSON = OUTPUTS_DIR / "report.json"
+DEBUG_JSON = LOGS_DIR / "filter_playlist.debug.json"
 
 
 @dataclass
 class Channel:
-    extinf_raw: str
-    url: str
-    tvg_id: str
-    tvg_name: str
-    group_title: str
-    name: str
+    tvg_id: str = ""
+    tvg_name: str = ""
+    group_title: str = ""
+    name: str = ""
+    url: str = ""
+    source: str = ""          # which M3U URL it came from
+    validated: Optional[bool] = None
+    validate_code: Optional[int] = None
+    validate_reason: str = ""
 
 
 # ----------------------------
-# Helpers: IO / parsing
+# Utility
 # ----------------------------
 
-def load_yaml(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+def _read_yaml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def write_json(path: Path, obj: dict) -> None:
+def _write_json(path: Path, obj: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _attr(extinf: str, attr: str) -> str:
-    m = re.search(rf'{attr}="([^"]*)"', extinf)
-    return m.group(1).strip() if m else ""
+def _norm(s: str) -> str:
+    s = (s or "").strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
 
 
-def download_text(url: str, ua: str, timeout_sec: int) -> Path:
-    """Cache-by-filename download. Keeps runs fast and deterministic."""
-    fn = CACHE_DIR / Path(url).name
-    if fn.exists() and fn.stat().st_size > 0:
-        return fn
-    r = requests.get(url, timeout=timeout_sec, headers={"User-Agent": ua})
-    r.raise_for_status()
-    fn.write_text(r.text, encoding="utf-8")
-    return fn
-
-
-def parse_m3u(path: Path) -> List[Channel]:
-    """Parse #EXTINF + URL pairs."""
-    out: List[Channel] = []
-    current_extinf: Optional[str] = None
-
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-
-        if line.startswith("#EXTINF"):
-            current_extinf = line
-            continue
-
-        if current_extinf and (line.startswith("http://") or line.startswith("https://")):
-            ext = current_extinf
-            out.append(
-                Channel(
-                    extinf_raw=ext,
-                    url=line,
-                    tvg_id=_attr(ext, "tvg-id"),
-                    tvg_name=_attr(ext, "tvg-name"),
-                    group_title=_attr(ext, "group-title"),
-                    name=ext.split(",", 1)[-1].strip(),
-                )
-            )
-            current_extinf = None
-
+def _compile_rx_list(patterns: List[str]) -> List[re.Pattern]:
+    out = []
+    for p in patterns or []:
+        out.append(re.compile(p, flags=re.IGNORECASE))
     return out
 
 
-def normalize(s: str) -> str:
-    return re.sub(r"\W+", "", (s or "").lower())
+def _matches_any(rx_list: List[re.Pattern], text: str) -> bool:
+    t = text or ""
+    return any(rx.search(t) for rx in rx_list)
 
 
-def canonical_key(ch: Channel) -> str:
-    """Stable key for dedupe: prefer tvg-id, else tvg-name, else display name."""
-    return normalize(ch.tvg_id or ch.tvg_name or ch.name)
+def _get_user_agent(cfg: dict) -> str:
+    return (cfg.get("pipeline", {}) or {}).get("user_agent", "StreamLedger/1.x")
 
 
-# ----------------------------
-# Matching rules
-# ----------------------------
-
-def compile_regex_list(patterns: List[str]) -> List[re.Pattern]:
-    return [re.compile(p, re.IGNORECASE) for p in (patterns or [])]
-
-
-def matches_any(rx_list: List[re.Pattern], text: str) -> bool:
-    return bool(text) and any(rx.search(text) for rx in rx_list)
-
-
-def match_channel(ch: Channel, cfg: dict, rx_ex_name: List[re.Pattern], rx_in_net: List[re.Pattern], rx_in_spec: List[re.Pattern]) -> bool:
-    """
-    Decide if a channel qualifies *before* manual overrides.
-    Manual overrides are applied later as the final authority.
-    """
-    name = ch.tvg_name or ch.name
-    group = ch.group_title or ""
-
-    # Exclude: group-title (exact)
-    if group in (cfg.get("exclude", {}).get("group_title") or []):
-        return False
-
-    # Exclude: regex against name
-    if matches_any(rx_ex_name, name):
-        return False
-
-    # News allow-only whitelist
-    for token in (cfg.get("include", {}).get("news_allow_only") or []):
-        if token.lower() in name.lower():
-            return True
-
-    # Network/specialty match
-    if matches_any(rx_in_net, name):
-        return True
-    if matches_any(rx_in_spec, name):
-        return True
-
-    return False
+def _validation_mode() -> str:
+    # VALIDATION_MODE env var: light | deep | none
+    return (os.getenv("VALIDATION_MODE") or "light").strip().lower()
 
 
 # ----------------------------
-# Validation (light/deep/none)
+# Download + Parse M3U
 # ----------------------------
 
-def stream_alive(url: str, mode: str, cfg: dict) -> Tuple[bool, str]:
-    """
-    Returns (alive, reason)
+def download_text(url: str, ua: str, timeout_sec: int = 20) -> Tuple[bool, str, str]:
+    """Returns (ok, text, error)"""
+    try:
+        r = requests.get(url, headers={"User-Agent": ua}, timeout=timeout_sec)
+        if r.status_code != 200:
+            return False, "", f"HTTP {r.status_code}"
+        return True, r.text, ""
+    except Exception as e:
+        return False, "", f"{type(e).__name__}: {e}"
 
-    light:
-      - HEAD only
-      - treat 403/405 as "soft alive" if enabled
-    deep:
-      - HEAD then GET Range fallback for common blocked HEAD cases
-    none:
-      - always alive (no validation)
-    """
+
+_ATTR_RX = re.compile(r'(\w[\w-]*)="([^"]*)"')
+
+
+def parse_m3u_text(text: str, source_url: str) -> List[Channel]:
+    channels: List[Channel] = []
+    if not text:
+        return channels
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    current: Optional[Channel] = None
+
+    for ln in lines:
+        if ln.startswith("#EXTINF:"):
+            # Example:
+            # #EXTINF:-1 tvg-id="X" tvg-name="Y" group-title="Z",Display Name
+            attrs = dict(_ATTR_RX.findall(ln))
+            name = ""
+            if "," in ln:
+                name = ln.split(",", 1)[1].strip()
+
+            current = Channel(
+                tvg_id=_norm(attrs.get("tvg-id", "")),
+                tvg_name=_norm(attrs.get("tvg-name", "")),
+                group_title=_norm(attrs.get("group-title", "")),
+                name=_norm(name),
+                url="",
+                source=source_url,
+            )
+        elif ln.startswith("#"):
+            continue
+        else:
+            # URL line
+            if current is not None:
+                current.url = ln
+                # backfill display name
+                if not current.tvg_name:
+                    current.tvg_name = current.name
+                if not current.name:
+                    current.name = current.tvg_name
+                channels.append(current)
+                current = None
+
+    return channels
+
+
+def load_all_sources(cfg: dict, dbg: dict) -> List[Channel]:
+    ua = _get_user_agent(cfg)
+    srcs = ((cfg.get("sources", {}) or {}).get("m3u", []) or [])
+    if not srcs:
+        raise ValueError("No sources.m3u configured in config/streamledger.yml")
+
+    downloaded_ok = 0
+    all_channels: List[Channel] = []
+    failures = []
+
+    for url in srcs:
+        ok, txt, err = download_text(url, ua=ua, timeout_sec=25)
+        if not ok:
+            failures.append({"url": url, "error": err})
+            continue
+        downloaded_ok += 1
+        parsed = parse_m3u_text(txt, url)
+        all_channels.extend(parsed)
+
+    dbg["download"] = {
+        "sources": srcs,
+        "downloaded_ok": downloaded_ok,
+        "download_failures": failures,
+        "parsed_total": len(all_channels),
+    }
+
+    if downloaded_ok == 0:
+        # true fatal: nothing to work with
+        raise RuntimeError(f"All M3U source downloads failed: {failures[:3]}")
+
+    return all_channels
+
+
+# ----------------------------
+# De-dup + Validate
+# ----------------------------
+
+def dedupe_channels(channels: List[Channel], dbg: dict) -> List[Channel]:
+    seen = set()
+    out = []
+    dupes = 0
+
+    for ch in channels:
+        key = (ch.tvg_id.lower() if ch.tvg_id else ch.name.lower(), ch.url)
+        if key in seen:
+            dupes += 1
+            continue
+        seen.add(key)
+        out.append(ch)
+
+    dbg["dedupe"] = {"input": len(channels), "output": len(out), "dupes_removed": dupes}
+    return out
+
+
+def head_check(url: str, ua: str, timeout_sec: int, range_bytes: Optional[str] = None) -> Tuple[bool, int, str]:
+    headers = {"User-Agent": ua}
+    if range_bytes:
+        headers["Range"] = range_bytes
+
+    try:
+        r = requests.head(url, headers=headers, timeout=timeout_sec, allow_redirects=True)
+        code = r.status_code
+
+        # Many IPTV sources behave weirdly; treat 200/301/302/303/307/308 as OK
+        if code in (200, 301, 302, 303, 307, 308):
+            return True, code, "ok"
+
+        # Some servers block HEAD; optionally accept 403/405 as "alive" in light mode
+        return False, code, "head_not_ok"
+
+    except Exception as e:
+        return False, 0, f"{type(e).__name__}: {e}"
+
+
+def validate_streams(channels: List[Channel], cfg: dict, dbg: dict) -> None:
+    mode = _validation_mode()
+    ua = _get_user_agent(cfg)
+
+    vcfg = cfg.get("validation", {}) or {}
+    soft_alive = bool(vcfg.get("soft_alive_on_403_405", True))
+
+    profile = (vcfg.get(mode, {}) or {}) if mode in ("light", "deep") else {}
+    timeout_sec = int(profile.get("timeout_sec", 6)) if profile else 0
+    retries = int(profile.get("retries", 1)) if profile else 0
+    range_bytes = profile.get("range_bytes") if profile else None
+
+    dbg["validation"] = {
+        "mode": mode,
+        "timeout_sec": timeout_sec,
+        "retries": retries,
+        "range_bytes": range_bytes,
+        "soft_alive_on_403_405": soft_alive,
+    }
+
     if mode == "none":
-        return True, "validation=none"
+        for ch in channels:
+            ch.validated = None
+        return
 
-    vcfg = cfg.get("validation", {})
-    ua = cfg.get("pipeline", {}).get("user_agent", "StreamLedger")
+    alive = 0
+    dead = 0
+    codes: Dict[str, int] = {}
+    sample_failures = []
 
-    soft_403_405 = bool(vcfg.get("soft_alive_on_403_405", True))
+    for ch in channels:
+        ok_final = False
+        code_final = 0
+        reason_final = ""
 
-    profile = vcfg.get("deep" if mode == "deep" else "light", {})
-    timeout = int(profile.get("timeout_sec", 6))
-    retries = int(profile.get("retries", 1))
-    range_bytes = str(vcfg.get("deep", {}).get("range_bytes", "0-0"))
+        for attempt in range(retries + 1):
+            ok, code, reason = head_check(ch.url, ua=ua, timeout_sec=timeout_sec, range_bytes=range_bytes)
+            # treat 403/405 as alive if configured
+            if not ok and soft_alive and code in (403, 405):
+                ok = True
+                reason = "soft_alive_403_405"
 
-    last_exc: Optional[Exception] = None
-    for _ in range(max(1, retries + 1)):
+            if ok:
+                ok_final = True
+                code_final = code
+                reason_final = reason
+                break
+
+            # retry delay (small)
+            time.sleep(0.15)
+
+            ok_final = False
+            code_final = code
+            reason_final = reason
+
+        ch.validated = ok_final
+        ch.validate_code = code_final
+        ch.validate_reason = reason_final
+
+        k = str(code_final)
+        codes[k] = codes.get(k, 0) + 1
+
+        if ok_final:
+            alive += 1
+        else:
+            dead += 1
+            if len(sample_failures) < 15:
+                sample_failures.append({"name": ch.name, "url": ch.url, "code": code_final, "reason": reason_final})
+
+    dbg["validation"]["alive"] = alive
+    dbg["validation"]["dead"] = dead
+    dbg["validation"]["codes"] = codes
+    dbg["validation"]["sample_failures"] = sample_failures
+
+
+# ----------------------------
+# Include / Exclude + Manual Overrides
+# ----------------------------
+
+def load_manual_overrides(cfg: dict, dbg: dict) -> dict:
+    mcfg = cfg.get("manual_overrides", {}) or {}
+    enabled = bool(mcfg.get("enabled", False))
+    dbg["manual_overrides"] = {"enabled": enabled, "path": str(MANUAL_OVERRIDES_PATH)}
+
+    if not enabled:
+        return {}
+
+    if not MANUAL_OVERRIDES_PATH.exists():
+        dbg["manual_overrides"]["status"] = "missing_file"
+        return {}
+
+    data = _read_yaml(MANUAL_OVERRIDES_PATH) or {}
+    dbg["manual_overrides"]["status"] = "loaded"
+    dbg["manual_overrides"]["counts"] = {
+        "include_tvg_id": len((data.get("include", {}) or {}).get("tvg_id", []) or []),
+        "include_name": len((data.get("include", {}) or {}).get("name", []) or []),
+        "include_name_regex": len((data.get("include", {}) or {}).get("name_regex", []) or []),
+        "exclude_tvg_id": len((data.get("exclude", {}) or {}).get("tvg_id", []) or []),
+        "exclude_name": len((data.get("exclude", {}) or {}).get("name", []) or []),
+        "exclude_name_regex": len((data.get("exclude", {}) or {}).get("name_regex", []) or []),
+    }
+    return data
+
+
+def apply_rules(channels: List[Channel], cfg: dict, overrides: dict, dbg: dict) -> List[Channel]:
+    include_cfg = cfg.get("include", {}) or {}
+    exclude_cfg = cfg.get("exclude", {}) or {}
+
+    network_rx = _compile_rx_list(include_cfg.get("networks", []) or [])
+    specialty_rx = _compile_rx_list(include_cfg.get("specialty", []) or [])
+    news_allow = [x for x in (include_cfg.get("news_allow_only", []) or []) if str(x).strip()]
+
+    excl_groups = set(exclude_cfg.get("group_title", []) or [])
+    excl_name_rx = _compile_rx_list(exclude_cfg.get("name_regex", []) or [])
+
+    inc = overrides.get("include", {}) or {}
+    exc = overrides.get("exclude", {}) or {}
+
+    inc_ids = set((inc.get("tvg_id", []) or []))
+    inc_names = set(_norm(x).lower() for x in (inc.get("name", []) or []))
+    inc_name_rx = _compile_rx_list(inc.get("name_regex", []) or [])
+
+    exc_ids = set((exc.get("tvg_id", []) or []))
+    exc_names = set(_norm(x).lower() for x in (exc.get("name", []) or []))
+    exc_name_rx = _compile_rx_list(exc.get("name_regex", []) or [])
+
+    reasons = {"forced_out": 0, "excluded_group": 0, "excluded_name_regex": 0, "not_included": 0, "not_alive": 0}
+    kept: List[Channel] = []
+    dropped = 0
+
+    for ch in channels:
+        name = _norm(ch.tvg_name or ch.name)
+        name_l = name.lower()
+        tvg_id = (ch.tvg_id or "").strip()
+        group = _norm(ch.group_title)
+
+        # validation gate: if validated is False, drop
+        if ch.validated is False:
+            dropped += 1
+            reasons["not_alive"] += 1
+            continue
+
+        # forced exclude
+        if (tvg_id and tvg_id in exc_ids) or (name_l and name_l in exc_names) or _matches_any(exc_name_rx, name):
+            dropped += 1
+            reasons["forced_out"] += 1
+            continue
+
+        # exclude rules
+        if group and group in excl_groups:
+            dropped += 1
+            reasons["excluded_group"] += 1
+            continue
+        if name and _matches_any(excl_name_rx, name):
+            dropped += 1
+            reasons["excluded_name_regex"] += 1
+            continue
+
+        # forced include
+        if (tvg_id and tvg_id in inc_ids) or (name_l and name_l in inc_names) or _matches_any(inc_name_rx, name):
+            kept.append(ch)
+            continue
+
+        # include rules
+        is_news = (group.lower() == "news")
+        if is_news and news_allow:
+            if any(tok.lower() in name_l for tok in news_allow):
+                kept.append(ch)
+            else:
+                dropped += 1
+                reasons["not_included"] += 1
+            continue
+
+        if _matches_any(network_rx, name) or _matches_any(specialty_rx, name):
+            kept.append(ch)
+        else:
+            dropped += 1
+            reasons["not_included"] += 1
+
+    dbg["filter"] = {"kept": len(kept), "dropped": dropped, "reasons": reasons}
+    return kept
+
+
+# ----------------------------
+# Outputs
+# ----------------------------
+
+def write_curated_m3u(channels: List[Channel]) -> None:
+    lines = ["#EXTM3U"]
+    for ch in channels:
+        tvg_id = ch.tvg_id or ""
+        tvg_name = ch.tvg_name or ch.name or ""
+        group = ch.group_title or ""
+        display = ch.name or tvg_name
+        lines.append(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{tvg_name}" group-title="{group}",{display}')
+        lines.append(ch.url)
+    CURATED_M3U.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def update_report(cfg: dict, dbg: dict, curated_count: int) -> None:
+    rep: Dict[str, Any] = {}
+    if REPORT_JSON.exists():
         try:
-            r = requests.head(url, timeout=timeout, allow_redirects=True, headers={"User-Agent": ua})
-            if r.status_code < 400:
-                return True, f"head={r.status_code}"
+            rep = json.loads(REPORT_JSON.read_text(encoding="utf-8"))
+        except Exception:
+            rep = {}
 
-            if mode == "light" and r.status_code in (403, 405) and soft_403_405:
-                return True, f"head_soft={r.status_code}"
+    rep.setdefault("playlist", {})
+    rep["playlist"]["written_channels"] = curated_count
+    rep["playlist"]["validation_mode"] = _validation_mode()
 
-            if mode == "deep" and r.status_code in (403, 405, 406):
-                gr = requests.get(
-                    url,
-                    timeout=timeout,
-                    stream=True,
-                    allow_redirects=True,
-                    headers={"User-Agent": ua, "Range": f"bytes={range_bytes}"},
-                )
-                if gr.status_code < 400:
-                    return True, f"get_range={gr.status_code}"
-                return False, f"get_range_fail={gr.status_code}"
+    # min/max info (warn only)
+    pipe = cfg.get("pipeline", {}) or {}
+    rep["playlist"]["min_channels"] = int(pipe.get("min_channels", 0) or 0)
+    rep["playlist"]["max_channels"] = int(pipe.get("max_channels", 0) or 0)
 
-            return False, f"head_fail={r.status_code}"
+    rep.setdefault("debug", {})
+    rep["debug"]["filter"] = dbg.get("filter", {})
+    rep["debug"]["download"] = dbg.get("download", {})
+    rep["debug"]["dedupe"] = dbg.get("dedupe", {})
+    rep["debug"]["validation"] = dbg.get("validation", {})
+    rep["debug"]["manual_overrides"] = dbg.get("manual_overrides", {})
 
-        except Exception as e:
-            last_exc = e
-            time.sleep(0.2)
-
-    return False, f"exc={type(last_exc).__name__}" if last_exc else "exc=unknown"
-
-
-# ----------------------------
-# Manual overrides (final authority)
-# ----------------------------
-
-def load_overrides(cfg: dict) -> dict:
-    mo = cfg.get("manual_overrides", {}) or {}
-    if not bool(mo.get("enabled", True)):
-        return {}
-
-    rel = str(mo.get("file", "config/manual_overrides.yaml"))
-    path = (BASE_DIR / rel).resolve()
-    if not path.exists():
-        return {}
-
-    raw = load_yaml(path)
-    return raw.get("overrides", {}) or {}
-
-
-def apply_overrides(
-    channels_by_key: Dict[str, Channel],
-    all_channels: List[Channel],
-    cfg: dict,
-    report: dict,
-) -> Dict[str, Channel]:
-    """
-    Applies overrides as final authority:
-    - Exclusions always remove from selected.
-    - Inclusions attempt to add from all_channels (best candidate).
-    - Adds warnings into report if override target not found.
-    """
-    ov = load_overrides(cfg)
-    if not ov:
-        return channels_by_key
-
-    # Build lookup sets
-    ex_ids = set((ov.get("exclude_tvg_ids") or []))
-    in_ids = set((ov.get("include_tvg_ids") or []))
-
-    ex_names = set(normalize(x) for x in (ov.get("exclude_names") or []))
-    in_names = set(normalize(x) for x in (ov.get("include_names") or []))
-
-    ex_rx = compile_regex_list(ov.get("exclude_name_regex") or [])
-    in_rx = compile_regex_list(ov.get("include_name_regex") or [])
-
-    # 1) Apply exclusions to current selection
-    removed = 0
-    for key in list(channels_by_key.keys()):
-        ch = channels_by_key[key]
-        nm = normalize(ch.tvg_name or ch.name)
-        if (ch.tvg_id and ch.tvg_id in ex_ids) or (nm in ex_names) or matches_any(ex_rx, ch.tvg_name or ch.name):
-            del channels_by_key[key]
-            removed += 1
-
-    report.setdefault("overrides", {})
-    report["overrides"]["excluded_removed"] = removed
-
-    # 2) Apply inclusions: pick best candidate from all_channels (not just currently selected)
-    added = 0
-    not_found: List[str] = []
-
-    def candidates_for_include() -> List[Channel]:
-        # Inclusion can bypass include/exclude rules (except we still don't want obviously excluded by override exclusions)
-        return all_channels
-
-    for target_id in in_ids:
-        found = None
-        for ch in candidates_for_include():
-            if ch.tvg_id == target_id:
-                found = ch
-                break
-        if not found:
-            not_found.append(f"include_tvg_id:{target_id}")
-            continue
-        k = canonical_key(found)
-        channels_by_key[k] = found
-        added += 1
-
-    for target_name in in_names:
-        found = None
-        for ch in candidates_for_include():
-            nm = normalize(ch.tvg_name or ch.name)
-            if nm == target_name:
-                found = ch
-                break
-        if not found:
-            not_found.append(f"include_name:{target_name}")
-            continue
-        k = canonical_key(found)
-        channels_by_key[k] = found
-        added += 1
-
-    # regex includes
-    for rx in in_rx:
-        found_any = False
-        for ch in candidates_for_include():
-            nm_raw = ch.tvg_name or ch.name
-            if rx.search(nm_raw or ""):
-                k = canonical_key(ch)
-                channels_by_key[k] = ch
-                found_any = True
-        if not found_any:
-            not_found.append(f"include_name_regex:{rx.pattern}")
-
-    report["overrides"]["included_added"] = added
-    if not_found:
-        report.setdefault("warnings", []).append("manual_overrides_not_found: " + ", ".join(not_found))
-
-    return channels_by_key
+    _write_json(REPORT_JSON, rep)
 
 
 # ----------------------------
 # Main
 # ----------------------------
 
-def main() -> None:
-    cfg = load_yaml(CONFIG_DIR / "streamledger.yml")
-
-    mode = os.getenv("VALIDATION_MODE", "light").strip().lower()
-    if mode not in ("light", "deep", "none"):
-        mode = "light"
-
-    ua = cfg.get("pipeline", {}).get("user_agent", "StreamLedger")
-    timeout_dl = int(cfg.get("validation", {}).get("light", {}).get("timeout_sec", 6))
-
-    # Compile match regex once
-    rx_ex_name = compile_regex_list(cfg.get("exclude", {}).get("name_regex", []))
-    rx_in_net = compile_regex_list(cfg.get("include", {}).get("networks", []))
-    rx_in_spec = compile_regex_list(cfg.get("include", {}).get("specialty", []))
-
-    # Download and parse all sources
-    all_channels: List[Channel] = []
-    for url in (cfg.get("sources", {}).get("m3u") or []):
-        src_path = download_text(url, ua=ua, timeout_sec=timeout_dl)
-        all_channels.extend(parse_m3u(src_path))
-
-    # Pre-filter to candidates (before overrides)
-    candidates: List[Channel] = []
-    for ch in all_channels:
-        if match_channel(ch, cfg, rx_ex_name, rx_in_net, rx_in_spec):
-            candidates.append(ch)
-
-    # Dedupe (best wins by protocol preference; simple scoring keeps it predictable)
-    def score(ch: Channel) -> int:
-        s = 0
-        if ch.url.startswith("https://"):
-            s += 200
-        elif ch.url.startswith("http://"):
-            s += 100
-        if ch.tvg_id:
-            s += 25
-        if ch.tvg_name:
-            s += 10
-        return s
-
-    selected: Dict[str, Channel] = {}
-    selected_score: Dict[str, int] = {}
-    for ch in candidates:
-        k = canonical_key(ch)
-        sc = score(ch)
-        if k not in selected or sc > selected_score[k]:
-            selected[k] = ch
-            selected_score[k] = sc
-
-    # Validate
-    alive: Dict[str, Channel] = {}
-    validation_stats = {"alive": 0, "dead": 0, "soft": 0, "reasons": {}}
-
-    for k, ch in selected.items():
-        ok, reason = stream_alive(ch.url, mode=mode, cfg=cfg)
-        validation_stats["reasons"][reason] = validation_stats["reasons"].get(reason, 0) + 1
-        if ok:
-            alive[k] = ch
-            validation_stats["alive"] += 1
-            if "soft" in reason:
-                validation_stats["soft"] += 1
-        else:
-            validation_stats["dead"] += 1
-
-    # Report skeleton
-    report = {
-        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "app": __app__,
-        "component": __component__,
-        "version": __version__,
-        "validation_mode": mode,
-        "counts": {
-            "parsed_total": len(all_channels),
-            "matched_pre_dedupe": len(candidates),
-            "deduped_pre_validation": len(selected),
-            "validated_alive": len(alive),
-        },
-        "validation": validation_stats,
-        "warnings": [],
-    }
-
-    # Apply manual overrides (final authority)
-    alive = apply_overrides(alive, all_channels, cfg, report)
-
-    # Deterministic order + cap
-    max_channels = int(cfg.get("pipeline", {}).get("max_channels", 750))
-    min_channels = int(cfg.get("pipeline", {}).get("min_channels", 400))
-
-    ordered = sorted(
-        alive.values(),
-        key=lambda c: (
-            -score(c),
-            (c.tvg_name or c.name).lower(),
-            (c.group_title or "").lower(),
-            c.url.lower(),
-        ),
-    )
-    final_list = ordered[:max_channels]
-
-    # Write M3U
-    out = OUTPUTS_DIR / "curated.m3u"
-    with out.open("w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n")
-        for ch in final_list:
-            f.write(f"{ch.extinf_raw}\n{ch.url}\n")
-
-    # Final report counts + warnings
-    report["counts"]["final_written"] = len(final_list)
-    report["counts"]["min_channels"] = min_channels
-    report["counts"]["max_channels"] = max_channels
-
-    if len(final_list) < min_channels:
-        report["warnings"].append(f"final_written_below_min: {len(final_list)} < {min_channels}")
-
-    write_json(OUTPUTS_DIR / "report.json", report)
-
-    print(f"Written {len(final_list)} channels → {out}")
-    print(f"Wrote report → {OUTPUTS_DIR / 'report.json'}")
-
-
-if __name__ == "__main__":
-    main()
+def main
